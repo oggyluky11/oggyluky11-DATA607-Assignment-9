@@ -1,0 +1,168 @@
+---
+title: "DATA 607 Week 9 Assignment : Web APIs"
+author: "Fan Xu"
+date: "10/27/2019"
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_collapsed: yes
+    toc_float: yes
+  pdf_document:
+        extra_dependencies: ["geometry", "multicol", "multirow"]
+theme: lumen
+number_sections: yes
+toc_depth: 3
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# I. Assignment Overview
+
+The New York Times web site provides a rich set of APIs, as described here: <https://developer.nytimes.com/apis>(https://developer.nytimes.com/apis) 
+
+You’ll need to start by signing up for an API key. 
+
+Your task is to choose one of the New York Times APIs, construct an interface in R to read in the JSON data, and transform it into an R DataFrame.
+
+
+
+# II. Load Package
+```{r 0, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(httr)
+library(jsonlite)
+library(stringr)
+library(kableExtra)
+library(ggplot2)
+library(forcats)
+```
+
+
+```{r 1, echo=FALSE}
+api_key <- 'HzMYhjtkJ1eZ8xJC98d9Qp0rsABz8lU3'
+
+```
+
+
+# III. Set filter
+I will use Article Search API to look up articles. The date range is the whole year 2019. Search results from the first 5 pages will be downloaded.
+```{r 2}
+base_url = 'https://api.nytimes.com/svc/search/v2/articlesearch.json'
+start_date <- "20190101"
+end_date <- "20191231"
+first_page = 1
+last_page = 5
+
+```
+
+
+# IV. Read data and Convert to DataFrame
+## a. Create a dataframe to consolidate outputs from all pagination in scope.
+```{r 3}
+df_json <- data.frame(
+         pub_date=character(),
+         headline=character(),
+         abstract=character(),
+         lead_paragraph=character(),
+         author=character(),
+         type_of_material=character(),
+         source=character(),
+         section_name=character(),
+         word_count=integer(),
+         web_url=character(),
+         stringsAsFactors = FALSE
+)
+```
+
+## b. Get data, perfrom tidying and produce final output
+a. set a `for` loop to get contents from the first 5 pages of search result. `api_key` is hidden.
+
+b. `GET` function from package `httr` is used to get data from data source.
+
+c. `fromJSON` function from package `jsonlite` is used to convert json files to data frames.
+
+d. store data from each search page to data frame `df_temp`.
+
+e. consolidate `df_temp` from each search page into data frame `df_json` as final output.
+```{r 4}
+
+for (page in first_page:last_page){
+url = str_c(base_url, 
+            '?begin_date=',start_date,
+            '&end_date=',end_date,
+            '&offset=',page,
+            '&api-key=',api_key,
+            sep = '')
+
+articles <- GET(url)
+
+#http_status(articles)
+
+stop_for_status(articles)
+
+df_temp <- fromJSON(url) %>%
+ .$response %>%
+ .$doc %>%
+  mutate(headline = headline$main) %>%
+  mutate(byline = byline$original) %>%
+  mutate(byline = str_remove(byline, '^By ')) %>%
+  mutate(pub_date = as.Date(pub_date)) %>%
+  rename(author = byline) %>%
+  select(pub_date,
+         headline,
+         abstract,
+         lead_paragraph,
+         author,
+         type_of_material,
+         source,
+         section_name,
+         word_count,
+         web_url)
+  
+
+df_json <- rbind(df_json,df_temp)
+#print(c("Current Page: ", page))
+closeAllConnections()
+Sys.sleep(30)
+
+df_json
+}
+```
+
+
+```{r 5}
+df_json %>%
+  kable() %>% 
+  kable_styling() %>%
+  scroll_box(width = "810px", height = '500px')
+```
+
+# V. Extra: Plots for Analysis
+```{r 6}
+ggplot(data=df_json, aes(x=fct_rev(fct_infreq(section_name)), y=..count.., fill = ..count..))+
+  geom_bar(stat='count')+
+  geom_text(stat = 'count', aes(label=..count..),size = 3, color= 'white',position = position_stack(vjust = 0.8))+
+  scale_fill_gradient(low = 'deeppink4', high = 'deeppink1')+
+  xlab('section name')+
+  ggtitle('Number of Articles by Section Name')+
+  coord_flip()
+
+ggplot(data=df_json, aes(x=fct_rev(fct_infreq(type_of_material)), y=..count.., fill = ..count..))+
+  geom_bar(stat='count')+
+  geom_text(stat = 'count', aes(label=..count..),size = 3, color= 'white',position = position_stack(vjust = 0.8))+
+  scale_fill_gradient(low = 'tan4', high = 'tan1')+
+  xlab('type of material')+
+  ggtitle('Number of Articles by Type of Material')+
+  coord_flip()
+
+ggplot(data=df_json, aes(x=word_count, fill=..count..))+
+  geom_histogram(bins=30,color="black")+
+  scale_fill_gradient(low = 'cyan4', high = 'cyan1')+
+  ggtitle('Histogram: Word Count')
+  
+  
+```

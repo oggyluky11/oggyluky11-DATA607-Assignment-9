@@ -1,0 +1,10 @@
+name: Publish Document
+title:
+username:
+account: rpubs
+server: rpubs.com
+hostUrl: rpubs.com
+appId: https://api.rpubs.com/api/v1/document/543655/314aac080e72416490b40627ffe9729e
+bundleId: https://api.rpubs.com/api/v1/document/543655/314aac080e72416490b40627ffe9729e
+url: http://rpubs.com/oggyluky11/543655
+when: 1572170918.38419
